@@ -11,7 +11,7 @@ st.set_page_config(page_title="Universal Scraper Terminal", layout="wide", page_
 # st.secrets erişimi hata verirse (dosya yoksa) otomatik olarak Localhost'a düşer.
 try:
     if "API_URL" in st.secrets:
-        BASE_URL = st.secrets["API_URL"]
+        BASE_URL = st.secrets["https://universal-scraper-api.onrender.com"]
     else:
         BASE_URL = "http://127.0.0.1:8000"
 except Exception:
