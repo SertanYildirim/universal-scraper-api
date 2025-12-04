@@ -2,6 +2,8 @@ import streamlit as st
 import requests
 import pandas as pd
 import json
+import os
+import time
 
 # --- AYARLAR ---
 st.set_page_config(page_title="Universal Scraper Terminal", layout="wide", page_icon="🕸️")
@@ -30,7 +32,7 @@ except Exception as e:
 API_URL = f"{BASE_URL}/scrape/advanced"
 TEST_URL = "http://books.toscrape.com/"
 
-# --- HEADER ---
+# --- BAŞLIK ---
 col1, col2 = st.columns([1, 5])
 with col1:
     # Resim linki bazen kırık olabiliyor, güvenli yükleme
@@ -42,25 +44,51 @@ with col2:
 st.markdown("---")
 
 
-# --- YARDIMCI FONKSİYON ---
+# --- API UYANDIRMA (PING) FONKSİYONU ---
+def wake_up_api(base_url):
+    """
+    Render sunucuları uyku modundaysa (Cold Start), API'yi uyandırmak için
+    ana sayfaya (root) basit bir GET isteği gönderir.
+    """
+    try:
+        # Sadece ana domaine istek atıyoruz (endpoint değil)
+        response = requests.get(base_url, timeout=5)
+        if response.status_code == 200:
+            return True
+    except Exception:
+        return False
+    return False
+
+
+# --- YARDIMCI FONKSİYON: API İSTEĞİ (GELİŞTİRİLDİ) ---
 def fetch_data(payload):
     """Verilen JSON payload'u API'ye gönderir ve sonucu döner."""
+
+    # İstek öncesi uyandırma kontrolü (Opsiyonel, ama iyi UX için)
+    # wake_up_api(BASE_URL)
+
     try:
-        with st.spinner("🕸️ Scraping in progress..."):
-            # Timeout süresini 30 saniye yaptık (Render uyku modu için)
-            response = requests.post(API_URL, json=payload, timeout=30)
+        with st.spinner("🕸️ Scraping in progress... (Waiting for server wakeup if needed)"):
+            # Timeout süresini 50 saniye yaptık (Render uyku modu için güvenlik marjı)
+            response = requests.post(API_URL, json=payload, timeout=50)
+
             response.raise_for_status()
             return response.json()
+
     except requests.exceptions.ConnectionError:
         st.error(f"⛔ Connection Error! Could not reach `{API_URL}`.")
-        st.info("Ensure the Render backend is active and your Secrets file is correct.")
+        st.info("If you are on Render (Free Tier), the server might be sleeping. Please wait 1 minute and try again.")
         return None
+
     except requests.exceptions.Timeout:
-        st.error("⛔ Timeout: The server took too long to respond (Cold Start?). Try again.")
+        st.error(
+            "⛔ Timeout: The server is taking too long to wake up (Cold Start). Please click 'Start Scraping' again in 30 seconds.")
         return None
+
     except requests.exceptions.HTTPError as e:
         st.error(f"HTTP Error ({response.status_code}): {response.text}")
         return None
+
     except Exception as e:
         st.error(f"Unexpected Error: {e}")
         return None
