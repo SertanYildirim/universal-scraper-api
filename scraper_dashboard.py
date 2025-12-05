@@ -18,11 +18,10 @@ else:
 if "API_KEY" in st.secrets:
     API_KEY = st.secrets["API_KEY"]
 else:
-    # Fallback or empty (Will cause error if not set in secrets)
-    # Never expose this in UI inputs
     API_KEY = None 
 
 # --- ENDPOINT DEFINITION ---
+# Hedef Endpoint: /scrape/advanced
 API_URL = f"{BASE_URL}/scrape/advanced"
 TEST_URL = "http://books.toscrape.com/"
 
@@ -33,7 +32,7 @@ with col_logo:
     st.markdown("## 🕸️")
 with col_title:
     st.title("Universal Scraper API Terminal")
-    st.caption("Professional Client v2.1")
+    st.caption("Professional Client v2.1 (Advanced Mode)")
 
 st.markdown("---")
 
@@ -58,7 +57,13 @@ def fetch_data(url, payload):
                 return None
             
             if response.status_code == 404:
-                st.error(f"Server Error (404): Endpoint not found at {BASE_URL}")
+                st.error(f"Server Error (404): Endpoint not found at {url}")
+                return None
+
+            if response.status_code == 422:
+                st.error("Validation Error (422): The data format sent does not match what the server expects.")
+                st.warning("Ensure the backend supports the 'Advanced' schema (fields list, container, etc.).")
+                st.json(response.json()) # Hatayı detaylı göster
                 return None
 
             response.raise_for_status()
@@ -83,7 +88,7 @@ with tab_visual:
     with col_a:
         target_url = st.text_input("Target URL", value=TEST_URL)
     with col_b:
-        container_selector = st.text_input("Container Selector", value="article.product_pod")
+        container_selector = st.text_input("Container Selector", value="article.product_pod", help="CSS selector for the wrapping element of each item")
 
     st.markdown("#### Data Fields")
     if 'fields' not in st.session_state:
@@ -99,7 +104,7 @@ with tab_visual:
         with c2:
             field['selector'] = st.text_input(f"CSS Selector", value=field['selector'], key=f"sel_{i}", label_visibility="collapsed")
         with c3:
-            field['extraction_type'] = st.selectbox(f"Type", ['text', 'href', 'src'], key=f"type_{i}", index=['text', 'href', 'src'].index(field['extraction_type']), label_visibility="collapsed")
+            field['extraction_type'] = st.selectbox(f"Type", ['text', 'href', 'src', 'attribute'], key=f"type_{i}", index=['text', 'href', 'src', 'attribute'].index(field['extraction_type']) if field['extraction_type'] in ['text', 'href', 'src', 'attribute'] else 0, label_visibility="collapsed")
         with c4:
             if st.button("✕", key=f"del_{i}"):
                 st.session_state.fields.pop(i); st.rerun()
@@ -110,11 +115,15 @@ with tab_visual:
 
     st.markdown("---")
     
-    # Mapping to match backend requirements
+    # ---------------------------------------------------------
+    # GÜNCELLEME: Advanced Endpoint için Gelişmiş Payload Yapısı
+    # ---------------------------------------------------------
     visual_payload = {
         "url": target_url, 
         "render_js": False, 
-        "selectors": [f['selector'] for f in st.session_state.fields]
+        "container_selector": container_selector, # Container eklendi
+        # Sadece selector listesi değil, tüm field objelerini gönderiyoruz
+        "fields": st.session_state.fields 
     }
     
     if st.button("🚀 Start Scraping", type="primary"):
@@ -126,8 +135,18 @@ with tab_visual:
 # ==========================================
 with tab_json:
     st.subheader("Raw Configuration")
-    default_json = json.dumps({"url": "http://books.toscrape.com/", "render_js": False, "selectors": ["h3 a", ".price_color"]}, indent=2)
-    json_input = st.text_area("JSON Payload", value=default_json, height=300)
+    # Advanced şemaya uygun varsayılan JSON
+    default_payload = {
+        "url": "http://books.toscrape.com/",
+        "render_js": False,
+        "container_selector": "article.product_pod",
+        "fields": [
+            {"field_name": "title", "selector": "h3 a", "extraction_type": "text"},
+            {"field_name": "price", "selector": ".price_color", "extraction_type": "text"}
+        ]
+    }
+    default_json = json.dumps(default_payload, indent=2)
+    json_input = st.text_area("JSON Payload", value=default_json, height=350)
     
     if st.button("🚀 Send Request", type="primary"):
         try:
@@ -144,8 +163,17 @@ with tab_simple:
     st.subheader("Single Element Extraction")
     s_url = st.text_input("Page URL", "https://example.com")
     s_sel = st.text_input("CSS Selector", "h1")
+    
     if st.button("🚀 Fetch"):
-        payload = {"url": s_url, "selectors": [s_sel]}
+        # Quick Scrape de artık Advanced şemayı kullanıyor
+        payload = {
+            "url": s_url, 
+            "render_js": False,
+            "container_selector": "body", # Tüm sayfa için body
+            "fields": [
+                {"field_name": "content", "selector": s_sel, "extraction_type": "text"}
+            ]
+        }
         result = fetch_data(API_URL, payload)
         if result: st.session_state['last_result'] = result
 
