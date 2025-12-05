@@ -61,8 +61,7 @@ def fetch_data(url, payload):
                 return None
 
             if response.status_code == 422:
-                st.error("Validation Error (422): The data format sent does not match what the server expects.")
-                st.warning("Ensure the backend supports the 'Advanced' schema (fields list, container, etc.).")
+                st.error("Validation Error (422): Backend schema mismatch.")
                 st.json(response.json()) # Hatayı detaylı göster
                 return None
 
@@ -116,14 +115,13 @@ with tab_visual:
     st.markdown("---")
     
     # ---------------------------------------------------------
-    # GÜNCELLEME: Advanced Endpoint için Gelişmiş Payload Yapısı
+    # DÜZELTME: Backend 'data_fields' bekliyor, 'fields' değil.
     # ---------------------------------------------------------
     visual_payload = {
         "url": target_url, 
         "render_js": False, 
-        "container_selector": container_selector, # Container eklendi
-        # Sadece selector listesi değil, tüm field objelerini gönderiyoruz
-        "fields": st.session_state.fields 
+        "container_selector": container_selector,
+        "data_fields": st.session_state.fields  # <-- Düzeltildi: 'fields' -> 'data_fields'
     }
     
     if st.button("🚀 Start Scraping", type="primary"):
@@ -135,12 +133,12 @@ with tab_visual:
 # ==========================================
 with tab_json:
     st.subheader("Raw Configuration")
-    # Advanced şemaya uygun varsayılan JSON
+    # Advanced şemaya uygun varsayılan JSON (Düzeltildi)
     default_payload = {
         "url": "http://books.toscrape.com/",
         "render_js": False,
         "container_selector": "article.product_pod",
-        "fields": [
+        "data_fields": [  # <-- Düzeltildi
             {"field_name": "title", "selector": "h3 a", "extraction_type": "text"},
             {"field_name": "price", "selector": ".price_color", "extraction_type": "text"}
         ]
@@ -165,12 +163,12 @@ with tab_simple:
     s_sel = st.text_input("CSS Selector", "h1")
     
     if st.button("🚀 Fetch"):
-        # Quick Scrape de artık Advanced şemayı kullanıyor
+        # Quick Scrape de artık doğru şemayı kullanıyor
         payload = {
             "url": s_url, 
             "render_js": False,
-            "container_selector": "body", # Tüm sayfa için body
-            "fields": [
+            "container_selector": "body",
+            "data_fields": [  # <-- Düzeltildi
                 {"field_name": "content", "selector": s_sel, "extraction_type": "text"}
             ]
         }
