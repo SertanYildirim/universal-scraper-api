@@ -6,48 +6,24 @@ import json
 # --- CONFIGURATION ---
 st.set_page_config(page_title="Universal Scraper Terminal", layout="wide", page_icon="🕸️")
 
-# --- SIDEBAR: CONNECTION SETTINGS ---
-with st.sidebar:
-    st.header("Connection Settings")
+# --- INTERNAL SETTINGS (HIDDEN FROM UI) ---
+# 1. API URL SETUP
+if "API_URL" in st.secrets:
+    BASE_URL = st.secrets["API_URL"].rstrip('/')
+else:
+    # Default Production Server
+    BASE_URL = "http://13.48.147.34:8080"
 
-    # 1. URL MANAGEMENT
-    # Prioritize secrets, fallback to default IP
-    if "API_URL" in st.secrets:
-        default_url = st.secrets["API_URL"]
-    else:
-        default_url = "http://13.48.147.34:8080"
-    
-    # Clean input for Server URL
-    BASE_URL = st.text_input("Server URL", value=default_url).strip().rstrip('/')
-    
-    # Auto-append port 8080 if missing (Silent correction)
-    if len(BASE_URL.split(":")) < 3 and "localhost" not in BASE_URL:
-        BASE_URL = f"{BASE_URL}:8080"
-
-    # 2. API KEY MANAGEMENT
-    # Silent loading from secrets
-    api_key_val = ""
-    if "API_KEY" in st.secrets:
-        api_key_val = st.secrets["API_KEY"]
-    
-    # Input field overrides secrets if edited, otherwise acts as placeholder
-    API_KEY = st.text_input("API Key", value=api_key_val, type="password")
-
-    st.markdown("---")
-    
-    # Simple Connection Check
-    if st.button("Check Connection"):
-        try:
-            r = requests.get(BASE_URL, timeout=5)
-            if r.status_code == 200:
-                st.success(f"Connected: {r.json().get('service', 'Unknown Service')}")
-            else:
-                st.error(f"Connection Failed: {r.status_code}")
-        except Exception as e:
-            st.error("Server Unreachable")
+# 2. API KEY SETUP
+if "API_KEY" in st.secrets:
+    API_KEY = st.secrets["API_KEY"]
+else:
+    # Fallback or empty (Will cause error if not set in secrets)
+    # Never expose this in UI inputs
+    API_KEY = None 
 
 # --- ENDPOINT DEFINITION ---
-API_URL = f"{BASE_URL}/scrape"
+API_URL = f"{BASE_URL}/scrape/advanced"
 TEST_URL = "http://books.toscrape.com/"
 
 # --- HEADER ---
@@ -61,39 +37,38 @@ with col_title:
 
 st.markdown("---")
 
+# --- CHECK CONFIGURATION SILENTLY ---
+if not API_KEY:
+    st.error("System Error: API Key is not configured in the application secrets.")
+    st.stop()
+
 # --- HELPER: API FETCH ---
 def fetch_data(url, payload):
-    if not API_KEY:
-        st.error("API Key is missing.")
-        return None
-
     headers = {
         "Content-Type": "application/json",
         "x-api-key": API_KEY
     }
 
     try:
-        with st.spinner("Processing..."):
+        with st.spinner("Processing request..."):
             response = requests.post(url, json=payload, headers=headers, timeout=60)
             
             if response.status_code == 403:
-                st.error("Access Denied: Invalid API Key.")
+                st.error("Access Denied: Server rejected the API Key.")
                 return None
             
             if response.status_code == 404:
-                st.error("Endpoint Not Found (404)")
-                # Minimal hint for debugging purposes only if needed
-                st.caption(f"Target: {url}") 
+                st.error(f"Server Error (404): Endpoint not found at {BASE_URL}")
                 return None
 
             response.raise_for_status()
             return response.json()
 
     except requests.exceptions.ConnectionError:
-        st.error("Network Error: Could not connect to server.")
+        st.error("Network Error: Could not reach the API server.")
         return None
     except Exception as e:
-        st.error(f"Error: {str(e)}")
+        st.error(f"An unexpected error occurred: {str(e)}")
         return None
 
 # --- MAIN INTERFACE (TABS) ---
