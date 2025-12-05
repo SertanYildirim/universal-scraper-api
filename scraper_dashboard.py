@@ -24,6 +24,8 @@ try:
     if "API_KEY" in st.secrets:
         API_KEY = st.secrets["API_KEY"]
     else:
+        # Kod içinde gerçek şifre YAZMIYORUZ.
+        # Eğer secrets yoksa demo anahtar atanır (Çalışmaz, güvenlidir)
         API_KEY = "demo-key-placeholder" 
 
 except Exception:
@@ -35,9 +37,11 @@ API_URL = f"{BASE_URL}/scrape/advanced"
 SIMPLE_API_URL = f"{BASE_URL}/scrape/simple"
 TEST_URL = "http://books.toscrape.com/"
 
-# --- HEADER ---
-col1, col2 = st.columns([1, 5])
-with col1:
+# --- HEADER (HATA BURADAYDI, DÜZELTİLDİ) ---
+# Değişken isimlerini col_logo ve col_title olarak eşitledik.
+col_logo, col_title = st.columns([1, 5])
+
+with col_logo:
     st.markdown("## 🕸️")
 with col_title:
     st.title("Universal Scraper API Terminal")
