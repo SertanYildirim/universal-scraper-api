@@ -24,8 +24,6 @@ try:
     if "API_KEY" in st.secrets:
         API_KEY = st.secrets["API_KEY"]
     else:
-        # Kod içinde gerçek şifre YAZMIYORUZ.
-        # Eğer secrets yoksa demo anahtar atanır (Çalışmaz, güvenlidir)
         API_KEY = "demo-key-placeholder" 
 
 except Exception:
