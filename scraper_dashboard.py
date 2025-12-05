@@ -199,35 +199,3 @@ if 'last_result' in st.session_state and st.session_state['last_result']:
             st.download_button("⬇️ Download CSV", df.to_csv(index=False).encode('utf-8'), "data.csv", "text/csv")
     else:
         st.error(f"API Error: {data.get('message', 'Unknown Error')}")
-```
-
-### 🚀 3. Adım: AWS (Render) Ayarı (Environment Variable)
-
-Artık anahtar kodda yazmadığı için, API sunucusuna bu anahtarı dışarıdan vermemiz lazım.
-
-**Render kullanıyorsan:**
-1.  Render Dashboard -> Universal Scraper Service -> **Environment**.
-2.  **Add Environment Variable**:
-    * Key: `API_KEY`
-    * Value: `agci75?j3&a.z37` (Belirlediğin gizli şifre)
-3.  Kaydet. Render otomatik yeniden başlar.
-
-**AWS EC2 Kullanıyorsan:**
-1.  Systemd servis dosyanı aç: `sudo nano /etc/systemd/system/scraperapi.service`
-2.  `Environment` satırı ekle:
-    ```ini
-    Environment="API_KEY=agci75?j3&a.z37"
-    ```
-3.  Kaydet ve servisi yenile:
-    ```bash
-    sudo systemctl daemon-reload
-    sudo systemctl restart scraperapi
-    ```
-
-### 🚀 4. Adım: Streamlit Secrets Ayarı
-
-Streamlit Cloud'daki uygulamanın ayarlarına git ve Secrets kısmına şunu ekle:
-
-```toml
-API_URL = "http://13.48.147.34:8080" (Veya Render adresi)
-API_KEY = "agci75?j3&a.z37"
