@@ -33,12 +33,11 @@ except Exception:
     API_KEY = "demo-key-placeholder"
 
 # Endpoint Tanımı
-API_URL = f"{BASE_URL}/scrape/advanced"
-SIMPLE_API_URL = f"{BASE_URL}/scrape/simple"
+API_URL = f"{BASE_URL}/scrape"
 TEST_URL = "http://books.toscrape.com/"
 
-# --- HEADER (HATA BURADAYDI, DÜZELTİLDİ) ---
-# Değişken isimlerini col_logo ve col_title olarak eşitledik.
+# --- HEADER KISMI ---
+# Kodunuzun bu kısmı doğrudur, st.columns kullanımı günceldir.
 col_logo, col_title = st.columns([1, 5])
 
 with col_logo:
@@ -47,7 +46,7 @@ with col_title:
     st.title("Universal Scraper API Terminal")
     
     # Bağlantı durumunu göster
-    status_label = "Cloud API (AWS)" if "127.0.0.1" not in BASE_URL else "Localhost"
+    status_label = "Cloud API" if "127.0.0.1" not in BASE_URL else "Localhost"
     st.caption(f"**Target Backend:** `{BASE_URL}` ({status_label})")
 
 st.markdown("---")
@@ -57,7 +56,6 @@ def fetch_data(url, payload):
     """
     API'ye güvenli istek atar.
     """
-    # Header'a API Key ekliyoruz
     headers = {
         "Content-Type": "application/json",
         "x-api-key": API_KEY
@@ -68,18 +66,22 @@ def fetch_data(url, payload):
             # 30 saniye timeout
             response = requests.post(url, json=payload, headers=headers, timeout=30)
             
-            # 403 Hatası (Şifre Yanlışsa veya Secrets Girilmemişse)
+            # 403 Hatası
             if response.status_code == 403:
                 st.error("⛔ ACCESS DENIED: Invalid API Key.")
-                st.info("Check if 'API_KEY' is correctly set in Streamlit Secrets.")
                 return None
             
+            # 404 Hatası (Endpoint yanlışsa)
+            if response.status_code == 404:
+                st.error(f"⛔ 404 Not Found: '{url}' adresi sunucuda bulunamadı.")
+                return None
+
             response.raise_for_status()
             return response.json()
 
     except requests.exceptions.ConnectionError:
         st.error(f"⛔ API Connection Error. Cannot reach `{BASE_URL}`.")
-        st.warning("👉 If Local: Check if 'uvicorn' is running.\n👉 If Cloud: Check if AWS Security Group allows port 8080.")
+        st.warning("👉 If Local: Check if 'uvicorn' is running.\n👉 If Cloud: Check AWS/Firewall settings.")
         return None
     except requests.exceptions.HTTPError as e:
         st.error(f"HTTP Error ({response.status_code}): {response.text}")
@@ -101,6 +103,7 @@ with tab_visual:
     with col_a:
         target_url = st.text_input("Target URL", value=TEST_URL)
     with col_b:
+        # main.py şu an bu parametreyi desteklemiyor ama ileride kullanabilir
         container_selector = st.text_input("Container Selector", value="article.product_pod")
 
     st.markdown("#### Data Fields Mapping")
@@ -108,8 +111,7 @@ with tab_visual:
     if 'fields' not in st.session_state:
         st.session_state.fields = [
             {'field_name': 'title', 'selector': 'h3 a', 'extraction_type': 'text'},
-            {'field_name': 'price', 'selector': '.price_color', 'extraction_type': 'text'},
-            {'field_name': 'link', 'selector': 'h3 a', 'extraction_type': 'href'}
+            {'field_name': 'price', 'selector': '.price_color', 'extraction_type': 'text'}
         ]
 
     # Dinamik Alan Ekleme/Silme
@@ -133,10 +135,13 @@ with tab_visual:
 
     st.markdown("---")
     
+    # Not: main.py şu an sadece 'selectors' listesi alıyor. 
+    # Bu gelişmiş yapıyı backend tarafında işlemeniz gerekecek.
+    # Şimdilik backend'in hata vermemesi için yapıyı koruyup isteği atıyoruz.
     visual_payload = {
         "url": target_url,
-        "container_selector": container_selector,
-        "data_fields": st.session_state.fields
+        "render_js": False,
+        "selectors": [f['selector'] for f in st.session_state.fields] # main.py ile uyumlu hale getirdik
     }
     
     if st.button("🚀 Start Scraping (Visual)", type="primary"):
@@ -148,13 +153,11 @@ with tab_visual:
 # ==========================================
 with tab_json:
     st.subheader("🔹 Paste JSON Configuration")
+    # main.py ile uyumlu varsayılan JSON
     default_json = json.dumps({
         "url": "http://books.toscrape.com/",
-        "container_selector": "article.product_pod",
-        "data_fields": [
-            {"field_name": "book_title", "selector": "h3 a", "extraction_type": "text"},
-            {"field_name": "price", "selector": ".price_color", "extraction_type": "text"}
-        ]
+        "render_js": False,
+        "selectors": ["h3 a", ".price_color"]
     }, indent=2)
     
     json_input = st.text_area("JSON Payload", value=default_json, height=300)
@@ -176,11 +179,15 @@ with tab_simple:
     s_sel = st.text_input("Selector", "h1")
     
     if st.button("🚀 Scrape One"):
-        payload = {"url": s_url, "css_selector": s_sel}
-        # Simple endpoint için de aynı key gerekli
-        result = fetch_data(SIMPLE_API_URL, payload)
+        # Payload yapısı main.py'deki ScrapeRequest modeline uygun hale getirildi
+        payload = {
+            "url": s_url, 
+            "selectors": [s_sel] # Backend List[str] bekliyor
+        }
+        
+        result = fetch_data(API_URL, payload) # SIMPLE_API_URL yerine API_URL kullanıldı
         if result:
-             st.session_state['last_result'] = {"status": "success", "count": 1, "data": [{"text": result.get("data")}]}
+             st.session_state['last_result'] = result
 
 # ==========================================
 # RESULTS
@@ -191,13 +198,6 @@ st.header("📊 Results")
 if 'last_result' in st.session_state and st.session_state['last_result']:
     data = st.session_state['last_result']
     
-    if data.get("status") == "success":
-        items = data.get("data", [])
-        st.success(f"Scraped {data.get('count', 0)} items successfully.")
-        
-        if items:
-            df = pd.DataFrame(items)
-            st.dataframe(df, use_container_width=True)
-            st.download_button("⬇️ Download CSV", df.to_csv(index=False).encode('utf-8'), "data.csv", "text/csv")
-    else:
-        st.error(f"API Error: {data.get('message', 'Unknown Error')}")
+    # main.py şimdilik sadece "data" objesi dönüyor, "count" veya liste dönmüyor.
+    # Bu yüzden response yapısına göre esnek bir gösterim yapalım:
+    st.json(data)
