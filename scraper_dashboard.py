@@ -114,14 +114,12 @@ with tab_visual:
 
     st.markdown("---")
     
-    # ---------------------------------------------------------
-    # DÜZELTME: Backend 'data_fields' bekliyor, 'fields' değil.
-    # ---------------------------------------------------------
+    # Payload Construction
     visual_payload = {
         "url": target_url, 
         "render_js": False, 
         "container_selector": container_selector,
-        "data_fields": st.session_state.fields  # <-- Düzeltildi: 'fields' -> 'data_fields'
+        "data_fields": st.session_state.fields 
     }
     
     if st.button("🚀 Start Scraping", type="primary"):
@@ -133,12 +131,11 @@ with tab_visual:
 # ==========================================
 with tab_json:
     st.subheader("Raw Configuration")
-    # Advanced şemaya uygun varsayılan JSON (Düzeltildi)
     default_payload = {
         "url": "http://books.toscrape.com/",
         "render_js": False,
         "container_selector": "article.product_pod",
-        "data_fields": [  # <-- Düzeltildi
+        "data_fields": [ 
             {"field_name": "title", "selector": "h3 a", "extraction_type": "text"},
             {"field_name": "price", "selector": ".price_color", "extraction_type": "text"}
         ]
@@ -163,12 +160,11 @@ with tab_simple:
     s_sel = st.text_input("CSS Selector", "h1")
     
     if st.button("🚀 Fetch"):
-        # Quick Scrape de artık doğru şemayı kullanıyor
         payload = {
             "url": s_url, 
             "render_js": False,
             "container_selector": "body",
-            "data_fields": [  # <-- Düzeltildi
+            "data_fields": [
                 {"field_name": "content", "selector": s_sel, "extraction_type": "text"}
             ]
         }
@@ -176,9 +172,53 @@ with tab_simple:
         if result: st.session_state['last_result'] = result
 
 # ==========================================
-# RESULTS SECTION
+# RESULTS SECTION (UPDATED)
 # ==========================================
 st.markdown("---")
 st.header("Output")
+
 if 'last_result' in st.session_state and st.session_state['last_result']:
-    st.json(st.session_state['last_result'])
+    result_data = st.session_state['last_result']
+    
+    # 1. TABLE VIEW LOGIC
+    table_data = []
+    is_tabular = False
+    
+    # Normalize data extraction for table
+    if isinstance(result_data, list):
+        table_data = result_data
+        is_tabular = True
+    elif isinstance(result_data, dict):
+        if "data" in result_data:
+            content = result_data["data"]
+            if isinstance(content, list):
+                table_data = content
+                is_tabular = True
+            elif isinstance(content, dict):
+                table_data = [content]
+                is_tabular = True
+        elif "items" in result_data:
+             table_data = result_data["items"]
+             is_tabular = True
+    
+    # Display Table if data exists
+    if is_tabular and len(table_data) > 0:
+        st.subheader("📊 Data List")
+        df = pd.DataFrame(table_data)
+        st.dataframe(df, use_container_width=True)
+        
+        # Download Button
+        csv = df.to_csv(index=False).encode('utf-8')
+        st.download_button(
+            label="⬇️ Download CSV",
+            data=csv,
+            file_name="scraped_data.csv",
+            mime="text/csv",
+        )
+    else:
+        st.info("No tabular data found to display as list.")
+
+    # 2. RAW JSON VIEW
+    st.subheader("🔍 Raw JSON")
+    with st.expander("View JSON Response", expanded=True):
+        st.json(result_data)
